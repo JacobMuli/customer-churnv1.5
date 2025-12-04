@@ -1,4 +1,4 @@
-# 📊 Customer Churn Prediction – Streamlit App
+# 📊 Customer Churn Prediction – Streamlit App V1.5
 
 This repository contains a **Streamlit web application** for predicting customer churn using a **Random Forest model** trained on engineered customer behavioral, demographic, and interaction features.
 
