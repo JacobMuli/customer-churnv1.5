@@ -137,6 +137,21 @@ elif menu == "📊 EDA Overview":
     sns.heatmap(test_df.corr(), annot=True, cmap="coolwarm", ax=ax)
     st.pyplot(fig)
 
+    st.subheader("📌 Summary Insights")
+
+    st.markdown("""
+    ### 🔎 Key Observations from EDA Overview
+    
+    - **Churn distribution is imbalanced**, with more customers staying than churning.
+    - **Correlations show**:
+      - Higher **Support Calls** → Higher likelihood of churn.
+      - Higher **Payment Delay** → Increased churn probability.
+      - Higher **Tenure** is negatively correlated with churn, meaning long-term customers churn less.
+    - **Usage Frequency** and **Total Spend** also have moderate relationships with churn.
+    
+    These patterns suggest that behavioral and service-interaction metrics are strong predictors of churn.
+    """)
+
 # ----------------------------------------
 # PAGE: NUMERIC FEATURE ANALYSIS
 # ----------------------------------------
