@@ -5,6 +5,7 @@ import joblib
 import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_ind
+import shap
 
 # ----------------------------------------
 # PAGE CONFIG
@@ -22,6 +23,7 @@ menu = st.sidebar.selectbox(
         "📈 Numeric Feature Analysis",
         "📉 Categorical Analysis",
         "📑 Statistical Insights",
+        "🧪 SHAP Explainability"
     ]
 )
 
@@ -117,7 +119,6 @@ if menu == "🔮 Prediction":
         else:
             st.success("✅ The customer is not likely to churn.")
 
-
 # ----------------------------------------
 # PAGE: EDA OVERVIEW
 # ----------------------------------------
@@ -137,14 +138,12 @@ elif menu == "📊 EDA Overview":
     sns.heatmap(test_df.corr(), annot=True, cmap="coolwarm", ax=ax)
     st.pyplot(fig)
 
-    # SUMMARY SECTION
     st.subheader("📌 Summary Insights")
     st.markdown("""
-    ### 🔎 Key Observations  
-    - The dataset shows a **moderately imbalanced churn distribution**.  
-    - **Support Calls**, **Payment Delay**, and **Tenure** show meaningful correlation with churn.  
-    - Higher support usage and payment delays indicate dissatisfaction, increasing churn risk.  
-    - Longer tenure typically reduces churn, pointing to loyalty from long-term customers.  
+    - The dataset is **moderately imbalanced**.  
+    - Strong churn relationships appear in **Support Calls**, **Payment Delay**, and **Tenure**.  
+    - Longer-tenure users churn less.  
+    - High support usage usually indicates dissatisfaction.
     """)
 
 # ----------------------------------------
@@ -160,24 +159,21 @@ elif menu == "📈 Numeric Feature Analysis":
     ]
 
     for col in numeric_cols:
-        st.subheader(f"{col}")
+        st.subheader(col)
         fig, ax = plt.subplots()
         sns.histplot(test_df[col], kde=True, ax=ax)
         st.pyplot(fig)
 
-    # SUMMARY SECTION
-    st.subheader("📌 Summary of Numeric Feature Insights")
+    st.subheader("📌 Summary")
     st.markdown("""
-    ### 🧮 Key Findings  
-    - **Churners generally have lower Tenure**, suggesting early dropout behavior.  
-    - **High Support Calls** strongly indicate dissatisfaction.  
-    - **Payment Delay** positively correlates with churn—delayed payments reflect financial stress or low engagement.  
-    - **Total Spend** is lower among churners, implying reduced service usage.  
-    - Engagement-related metrics (Recency Ratio, Support Intensity) show noticeable separation between churn groups.  
+    - Churners generally have **lower Tenure**.  
+    - **Frequent Support Calls** are a churn signal.  
+    - **Payment Delay** increases churn likelihood.  
+    - **Total Spend** is lower among churners.
     """)
 
 # ----------------------------------------
-# PAGE: CATEGORICAL FEATURE ANALYSIS
+# PAGE: CATEGORICAL ANALYSIS
 # ----------------------------------------
 elif menu == "📉 Categorical Analysis":
     st.title("📉 Categorical Feature Analysis")
@@ -194,14 +190,12 @@ elif menu == "📉 Categorical Analysis":
         sns.countplot(data=test_df, x=col, hue="Churn", ax=ax)
         st.pyplot(fig)
 
-    # SUMMARY
-    st.subheader("📌 Categorical Feature Insights Summary")
+    st.subheader("📌 Summary")
     st.markdown("""
-    ### 🔍 Key Observations  
-    - **Basic subscribers churn significantly more** than Standard or Premium users.  
-    - **Monthly contract users have the highest churn**, confirming that short-term subscriptions lack commitment.  
-    - Annual contract customers churn the least, showing long-term retention benefits.  
-    - Gender differences are mild, but **females show slightly higher churn**.  
+    - **Basic plan users churn the most**.  
+    - **Monthly contracts** produce the most churn.  
+    - **Annual plans** have the lowest churn.  
+    - Gender differences are small but present.
     """)
 
 # ----------------------------------------
@@ -225,11 +219,291 @@ elif menu == "📑 Statistical Insights":
 
     st.dataframe(pd.DataFrame(results))
 
-    # SUMMARY
-    st.subheader("📌 Statistical Summary Interpretation")
+    st.subheader("📌 Interpretation")
     st.markdown("""
-    ### 📊 Insights  
-    - Features with **very low p-values (< 0.05)** show statistically significant differences between churn and non-churn groups.  
-    - **Tenure**, **Support Calls**, **Total Spend**, and **Payment Delay** consistently appear as strong churn predictors.  
-    - These results align with model feature importance and confirm the behavioral indicators affecting churn.  
+    - Features with **p < 0.05** significantly differ by churn group.  
+    - Strong indicators include **Tenure**, **Payment Delay**, **Support Calls**, and **Total Spend**.  
     """)
+
+# ----------------------------------------
+# PAGE: SHAP EXPLAINABILITY
+# ----------------------------------------
+elif menu == "🧪 SHAP Explainability":
+    st.title("🧪 SHAP Explainability (Model Explainability)")
+
+    st.markdown("""
+    This page provides global and local explanations for the LightGBM churn model using **SHAP values**.
+    """)
+
+    # Prepare X
+    X = test_df.drop(columns=["Churn"], errors="ignore").copy()
+    for col in feature_names:
+        if col not in X.columns:
+            X[col] = 0
+    X = X[feature_names]
+    X_scaled = scaler.transform(X)
+
+    st.subheader("Building SHAP Explainer...")
+    explainer = shap.Explainer(model)
+    shap_values = explainer(X_scaled)
+
+    # ---- Global Summary ----
+    st.subheader("🌍 Global Feature Importance (SHAP Summary Plot)")
+    fig = plt.figure(figsize=(10,6))
+    shap.summary_plot(shap_values.values, X, feature_names=feature_names, show=False)
+    st.pyplot(fig)
+
+    # ---- Beeswarm ----
+    st.subheader("🐝 SHAP Beeswarm Plot")
+    fig = plt.figure(figsize=(10,6))
+    shap.plots.beeswarm(shap_values, show=False, max_display=20)
+    st.pyplot(fig)
+
+    # ---- Local Explanation ----
+    st.subheader("🔍 Local Explanation (Single Customer)")
+    idx = st.number_input("Select row index:", min_value=0, max_value=len(X)-1, value=0)
+
+    st.write("Customer features:")
+    st.write(X.iloc[idx])
+
+    st.subheader("📉 SHAP Waterfall Plot")
+    fig = plt.figure(figsize=(10,6))
+    shap.plots.waterfall(shap_values[idx], max_display=20, show=False)
+    st.pyplot(fig)
+
+
+# import streamlit as st
+# import pandas as pd
+# import numpy as np
+# import joblib
+# import seaborn as sns
+# import matplotlib.pyplot as plt
+# from scipy.stats import ttest_ind
+
+# # ----------------------------------------
+# # PAGE CONFIG
+# # ----------------------------------------
+# st.set_page_config(page_title="Customer Churn App", page_icon="📊", layout="wide")
+
+# # ----------------------------------------
+# # SIDEBAR NAVIGATION
+# # ----------------------------------------
+# menu = st.sidebar.selectbox(
+#     "📌 Select a Page",
+#     [
+#         "🔮 Prediction",
+#         "📊 EDA Overview",
+#         "📈 Numeric Feature Analysis",
+#         "📉 Categorical Analysis",
+#         "📑 Statistical Insights",
+#     ]
+# )
+
+# # ----------------------------------------
+# # LOAD MODEL ARTIFACTS
+# # ----------------------------------------
+# model = joblib.load("model/lgb_model.pkl")
+# scaler = joblib.load("model/scaler.pkl")
+# label_encoders = joblib.load("model/label_encoders.pkl")
+# feature_names = joblib.load("model/feature_names.pkl")
+
+# # Load dataset (for EDA pages)
+# test_df = pd.read_csv("data/test_processed.csv")
+
+# # ----------------------------------------
+# # PAGE: PREDICTION
+# # ----------------------------------------
+# if menu == "🔮 Prediction":
+#     st.title("🔮 Customer Churn Prediction")
+
+#     with st.form("prediction_form"):
+#         col1, col2 = st.columns(2)
+
+#         with col1:
+#             age = st.number_input("Age", min_value=18, max_value=100, value=35)
+#             gender = st.selectbox("Gender", ["Male", "Female"])
+#             tenure = st.number_input("Tenure (Months)", min_value=0, value=12)
+#             usage = st.number_input("Usage Frequency", min_value=0, value=10)
+#             support_calls = st.number_input("Support Calls", min_value=0, value=2)
+
+#         with col2:
+#             payment_delay = st.number_input("Payment Delay (Days)", min_value=0, value=1)
+#             total_spend = st.number_input("Total Spend", min_value=0, value=500)
+#             last_interaction = st.number_input("Last Interaction (Days)", min_value=0, value=30)
+
+#         subscription = st.selectbox("Subscription Type", ["Basic", "Standard", "Premium"])
+#         contract = st.selectbox("Contract Length", ["Annual", "Monthly", "Quarterly"])
+
+#         submit = st.form_submit_button("Predict Churn")
+
+#     def preprocess():
+#         gender_val = 1 if gender == "Female" else 0
+#         subs = {
+#             "Subscription Type_Basic": 1 if subscription == "Basic" else 0,
+#             "Subscription Type_Standard": 1 if subscription == "Standard" else 0,
+#             "Subscription Type_Premium": 1 if subscription == "Premium" else 0,
+#         }
+#         contracts = {
+#             "Contract Length_Annual": 1 if contract == "Annual" else 0,
+#             "Contract Length_Monthly": 1 if contract == "Monthly" else 0,
+#             "Contract Length_Quarterly": 1 if contract == "Quarterly" else 0,
+#         }
+
+#         data = {
+#             "Age": age,
+#             "Gender": gender_val,
+#             "Tenure": tenure,
+#             "Usage Frequency": usage,
+#             "Support Calls": support_calls,
+#             "Payment Delay": payment_delay,
+#             "Total Spend": total_spend,
+#             "Last Interaction": last_interaction,
+#             **subs,
+#             **contracts,
+#             "Avg_Monthly_Spend": total_spend / max(tenure, 1),
+#             "Support_Intensity": support_calls / max(usage, 1),
+#             "Recency_Tenure_Ratio": last_interaction / max(tenure, 1),
+#         }
+
+#         df = pd.DataFrame([data])
+
+#         for col, le in label_encoders.items():
+#             if col in df.columns:
+#                 df[col] = le.transform(df[col].astype(str))
+
+#         for col in feature_names:
+#             if col not in df.columns:
+#                 df[col] = 0
+
+#         df = df[feature_names]
+#         return scaler.transform(df)
+
+#     if submit:
+#         X = preprocess()
+#         proba = model.predict_proba(X)[0][1]
+#         pred = int(proba > 0.5)
+
+#         st.subheader("🔍 Result")
+#         st.write(f"**Churn Probability:** `{proba:.2f}`")
+
+#         if pred == 1:
+#             st.error("⚠️ The customer is likely to churn.")
+#         else:
+#             st.success("✅ The customer is not likely to churn.")
+
+
+# # ----------------------------------------
+# # PAGE: EDA OVERVIEW
+# # ----------------------------------------
+# elif menu == "📊 EDA Overview":
+#     st.title("📊 EDA Overview")
+
+#     st.subheader("Dataset Preview")
+#     st.write(test_df.head())
+
+#     st.subheader("Churn Distribution")
+#     fig, ax = plt.subplots()
+#     sns.countplot(data=test_df, x="Churn", ax=ax)
+#     st.pyplot(fig)
+
+#     st.subheader("Correlation Matrix")
+#     fig, ax = plt.subplots(figsize=(10,5))
+#     sns.heatmap(test_df.corr(), annot=True, cmap="coolwarm", ax=ax)
+#     st.pyplot(fig)
+
+#     # SUMMARY SECTION
+#     st.subheader("📌 Summary Insights")
+#     st.markdown("""
+#     ### 🔎 Key Observations  
+#     - The dataset shows a **moderately imbalanced churn distribution**.  
+#     - **Support Calls**, **Payment Delay**, and **Tenure** show meaningful correlation with churn.  
+#     - Higher support usage and payment delays indicate dissatisfaction, increasing churn risk.  
+#     - Longer tenure typically reduces churn, pointing to loyalty from long-term customers.  
+#     """)
+
+# # ----------------------------------------
+# # PAGE: NUMERIC FEATURE ANALYSIS
+# # ----------------------------------------
+# elif menu == "📈 Numeric Feature Analysis":
+#     st.title("📈 Numeric Feature Analysis")
+
+#     numeric_cols = [
+#         'Age','Tenure','Usage Frequency','Support Calls',
+#         'Payment Delay','Total Spend','Last Interaction',
+#         'Avg_Monthly_Spend','Support_Intensity','Recency_Tenure_Ratio'
+#     ]
+
+#     for col in numeric_cols:
+#         st.subheader(f"{col}")
+#         fig, ax = plt.subplots()
+#         sns.histplot(test_df[col], kde=True, ax=ax)
+#         st.pyplot(fig)
+
+#     # SUMMARY SECTION
+#     st.subheader("📌 Summary of Numeric Feature Insights")
+#     st.markdown("""
+#     ### 🧮 Key Findings  
+#     - **Churners generally have lower Tenure**, suggesting early dropout behavior.  
+#     - **High Support Calls** strongly indicate dissatisfaction.  
+#     - **Payment Delay** positively correlates with churn—delayed payments reflect financial stress or low engagement.  
+#     - **Total Spend** is lower among churners, implying reduced service usage.  
+#     - Engagement-related metrics (Recency Ratio, Support Intensity) show noticeable separation between churn groups.  
+#     """)
+
+# # ----------------------------------------
+# # PAGE: CATEGORICAL FEATURE ANALYSIS
+# # ----------------------------------------
+# elif menu == "📉 Categorical Analysis":
+#     st.title("📉 Categorical Feature Analysis")
+
+#     cat_cols = [
+#         'Gender',
+#         'Subscription Type_Basic','Subscription Type_Standard','Subscription Type_Premium',
+#         'Contract Length_Annual','Contract Length_Monthly','Contract Length_Quarterly'
+#     ]
+
+#     for col in cat_cols:
+#         st.subheader(col)
+#         fig, ax = plt.subplots()
+#         sns.countplot(data=test_df, x=col, hue="Churn", ax=ax)
+#         st.pyplot(fig)
+
+#     # SUMMARY
+#     st.subheader("📌 Categorical Feature Insights Summary")
+#     st.markdown("""
+#     ### 🔍 Key Observations  
+#     - **Basic subscribers churn significantly more** than Standard or Premium users.  
+#     - **Monthly contract users have the highest churn**, confirming that short-term subscriptions lack commitment.  
+#     - Annual contract customers churn the least, showing long-term retention benefits.  
+#     - Gender differences are mild, but **females show slightly higher churn**.  
+#     """)
+
+# # ----------------------------------------
+# # PAGE: STATISTICAL INSIGHTS
+# # ----------------------------------------
+# elif menu == "📑 Statistical Insights":
+#     st.title("📑 Statistical Insights")
+
+#     numeric_cols = [
+#         'Age','Tenure','Usage Frequency','Support Calls',
+#         'Payment Delay','Total Spend','Last Interaction',
+#         'Avg_Monthly_Spend','Support_Intensity','Recency_Tenure_Ratio'
+#     ]
+
+#     results = []
+#     for col in numeric_cols:
+#         c0 = test_df[test_df["Churn"] == 0][col]
+#         c1 = test_df[test_df["Churn"] == 1][col]
+#         stat, p = ttest_ind(c0, c1, equal_var=False)
+#         results.append({"Feature": col, "p-value": p})
+
+#     st.dataframe(pd.DataFrame(results))
+
+#     # SUMMARY
+#     st.subheader("📌 Statistical Summary Interpretation")
+#     st.markdown("""
+#     ### 📊 Insights  
+#     - Features with **very low p-values (< 0.05)** show statistically significant differences between churn and non-churn groups.  
+#     - **Tenure**, **Support Calls**, **Total Spend**, and **Payment Delay** consistently appear as strong churn predictors.  
+#     - These results align with model feature importance and confirm the behavioral indicators affecting churn.  
+#     """)
